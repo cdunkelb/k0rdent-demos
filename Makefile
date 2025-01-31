@@ -130,7 +130,7 @@ bootstrap-kind-cluster: ## Provision local kind cluster
 	else\
 		rm -rf $(KIND_CLUSTER_CONFIG_PATH); \
 		make $(KIND_CLUSTER_CONFIG_PATH); \
-		$(KIND) create cluster --name=$(KIND_CLUSTER_NAME) --config=$(KIND_CLUSTER_CONFIG_PATH);\
+		$(KIND) create cluster --name=$(KIND_CLUSTER_NAME) --config=$(KIND_CLUSTER_CONFIG_PATH) --network kindnet;\
 	fi
 	@$(KUBECTL) config use-context $(KIND_KUBECTL_CONTEXT)
 
