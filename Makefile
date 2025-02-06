@@ -754,8 +754,8 @@ define delete_all_access_keys
 endef
 
 .PHONY: clean-aws
-clean-aws: .check-variable-aws-access-key .check-variable-aws-secret-access-key
-clean-aws: ## Clean up AWS resources
+clean-aws-user: .check-variable-aws-access-key .check-variable-aws-secret-access-key
+clean-aws-user: ## Clean up AWS resources
 	@if [ -z "$(CAPI_USER)" ]; then \
 		echo "Please set the CAPI_USER environment variable before running this target."; \
 		exit 1; \
@@ -763,7 +763,14 @@ clean-aws: ## Clean up AWS resources
 	$(call detach_all_policies,$(CAPI_USER))
 	$(call delete_all_access_keys,$(CAPI_USER))
 	aws iam delete-user --user-name $(CAPI_USER)
-	echo "AWS resources cleaned up"
+
+.PHONY: clean-aws-cloudformation
+clean-aws-cloudformation: .check-variable-aws-access-key .check-variable-aws-secret-access-key
+clean-aws-cloudformation: ## Clean up AWS CloudFormation resources
+	clusterawsadm bootstrap iam delete-cloudformation-stack
+
+.PHONY: clean-aws
+clean-aws: clean-aws-user clean-aws-cloudformation ## Clean up AWS resources
 
 .PHONY: prepare-aws
 prepare-aws: .check-variable-aws-access-key .check-variable-aws-secret-access-key
