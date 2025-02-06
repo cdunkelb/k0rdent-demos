@@ -780,6 +780,7 @@ prepare-aws: ## Prepare AWS resources as per https://docs.k0rdent.io/v0.1.0/quic
 		exit 1; \
 	fi
 	aws iam create-user --user-name $(CAPI_USER) && aws iam create-access-key --user-name $(CAPI_USER) > access-key.json || true
+	@echo "Creating CAPI CloudFormation stack. This may take a few minutes..."
 	clusterawsadm bootstrap iam create-cloudformation-stack
 	@AWS_ACCOUNT_ID=$$(aws sts get-caller-identity --query Account --output text); \
 	 aws iam attach-user-policy --user-name $(CAPI_USER) --policy-arn arn:aws:iam::$$AWS_ACCOUNT_ID:policy/control-plane.cluster-api-provider-aws.sigs.k8s.io; \
