@@ -14,7 +14,7 @@ TARGET_NAMESPACE ?= blue
 
 KIND_CLUSTER_NAME ?= k0rdent-management-local
 KIND_KUBECTL_CONTEXT = kind-$(KIND_CLUSTER_NAME)
-KUBE_CLUSTER_HOSTNAME ?= k0rdent-management-local-control-plane
+KUBE_CLUSTER_HOSTNAME ?= 127.0.0.1
 
 OPENSSL_DOCKER_IMAGE ?= alpine/openssl:3.3.2
 
