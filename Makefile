@@ -14,6 +14,7 @@ TARGET_NAMESPACE ?= blue
 
 KIND_CLUSTER_NAME ?= k0rdent-management-local
 KIND_KUBECTL_CONTEXT = kind-$(KIND_CLUSTER_NAME)
+KUBE_CLUSTER_HOSTNAME ?= k0rdent-management-local-control-plane
 
 OPENSSL_DOCKER_IMAGE ?= alpine/openssl:3.3.2
 
@@ -164,7 +165,7 @@ $(CHARTS_PACKAGE_DIR): | $(LOCALBIN)
 
 HELM_REGISTRY_INTERNAL_PORT ?= 5000
 HELM_REGISTRY_EXTERNAL_PORT ?= 30500
-REGISTRY_REPO ?= oci://127.0.0.1:$(HELM_REGISTRY_EXTERNAL_PORT)/helm-charts
+REGISTRY_REPO ?= oci://$(KUBE_CLUSTER_HOSTNAME):$(HELM_REGISTRY_EXTERNAL_PORT)/helm-charts
 
 .PHONY: helm-package
 helm-package: $(CHARTS_PACKAGE_DIR) .check-binary-helm
@@ -183,7 +184,7 @@ package-chart-%: lint-chart-%
 .PHONY: helm-push
 helm-push: helm-package
 	@for chart in $(CHARTS_PACKAGE_DIR)/*.tgz; do \
-		$(HELM) push "$$chart" $(REGISTRY_REPO); \
+		$(HELM) push --plain-http "$$chart" $(REGISTRY_REPO); \
 	done
 
 apply-helmrepo: SHOW_DIFF = false
@@ -739,3 +740,49 @@ clean-configs:
 clean-certs:
 	@rm -rf certs/ca
 	@rm -rf certs/platform-engineer*
+
+define detach_all_policies
+	@for policy in $$(aws iam list-attached-user-policies --user-name $(1) --query 'AttachedPolicies[].PolicyArn' --output text); do \
+		aws iam detach-user-policy --user-name $(1) --policy-arn $$policy; \
+	done
+endef
+
+define delete_all_access_keys
+	@for key in $$(aws iam list-access-keys --user-name $(1) --query 'AccessKeyMetadata[].AccessKeyId' --output text); do \
+		aws iam delete-access-key --user-name $(1) --access-key-id $$key; \
+	done
+endef
+
+.PHONY: clean-aws
+clean-aws: .check-variable-aws-access-key .check-variable-aws-secret-access-key
+clean-aws: ## Clean up AWS resources
+	@if [ -z "$(CAPI_USER)" ]; then \
+		echo "Please set the CAPI_USER environment variable before running this target."; \
+		exit 1; \
+	fi
+	$(call detach_all_policies,$(CAPI_USER))
+	$(call delete_all_access_keys,$(CAPI_USER))
+	aws iam delete-user --user-name $(CAPI_USER)
+	echo "AWS resources cleaned up"
+
+.PHONY: prepare-aws
+prepare-aws: .check-variable-aws-access-key .check-variable-aws-secret-access-key
+prepare-aws: ## Prepare AWS resources as per https://docs.k0rdent.io/v0.1.0/quickstart-2-aws/
+	@if [ -z "$(CAPI_USER)" ]; then \
+		echo "Please set the CAPI_USER environment variable before running this target."; \
+		exit 1; \
+	fi
+	aws iam create-user --user-name $(CAPI_USER) && aws iam create-access-key --user-name $(CAPI_USER) > access-key.json || true
+	clusterawsadm bootstrap iam create-cloudformation-stack
+	@AWS_ACCOUNT_ID=$$(aws sts get-caller-identity --query Account --output text); \
+	 aws iam attach-user-policy --user-name $(CAPI_USER) --policy-arn arn:aws:iam::$$AWS_ACCOUNT_ID:policy/control-plane.cluster-api-provider-aws.sigs.k8s.io; \
+	 aws iam attach-user-policy --user-name $(CAPI_USER) --policy-arn arn:aws:iam::$$AWS_ACCOUNT_ID:policy/controllers-eks.cluster-api-provider-aws.sigs.k8s.io; \
+	 aws iam attach-user-policy --user-name $(CAPI_USER) --policy-arn arn:aws:iam::$$AWS_ACCOUNT_ID:policy/controllers.cluster-api-provider-aws.sigs.k8s.io; \
+	 echo "Created $(CAPI_USER) in AWS Account ID: $$AWS_ACCOUNT_ID"
+	@echo "export AWS_ACCESS_KEY_ID=$$(awk -F '[:,]' '/AccessKeyId/ {gsub(/^[[:space:]]+|[[:space:]]+$$/, "", $$2); gsub(/"/, "", $$2); print $$2}' access-key.json)"
+	@echo "export AWS_SECRET_ACCESS_KEY=$$(awk -F '[:,]' '/SecretAccessKey/ {gsub(/^[[:space:]]+|[[:space:]]+$$/, "", $$2); gsub(/"/, "", $$2); print $$2}' access-key.json)"
+	@echo "unset AWS_SESSION_TOKEN"
+
+
+
+
