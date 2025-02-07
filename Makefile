@@ -498,8 +498,12 @@ get-yaml-multiclusterservice-global-kyverno: ## Get global-kyverno MultiClusterS
 ##@ Demo 5
 
 define get_host_work_dir
-	docker ps --filter "ancestor=msr.ci.mirantis.com/testeng/testsuite:0.5.0" --format "{{.ID}}" | head -n 1 | \
-	xargs docker inspect | jq -r '.[] | .Mounts[]? | select(.Source? and (.Source | test(".*/work$$"))) | .Source'
+	if [ -z "$(shell docker ps --filter "ancestor=msr.ci.mirantis.com/testeng/testsuite:0.5.0" --format "{{.ID}}" | head -n 1)" ]; then
+		echo $(shell pwd)/certs
+	else
+		docker ps --filter "ancestor=msr.ci.mirantis.com/testeng/testsuite:0.5.0" --format "{{.ID}}" | head -n 1 | \
+		xargs docker inspect | jq -r '.[] | .Mounts[]? | select(.Source? and (.Source | test(".*/work$$"))) | .Source'
+	fi
 endef
 
 CERTS_DIR_HOST = $(shell $(call get_host_work_dir))/k0rdent/github.com/k0rdent/demos/certs
