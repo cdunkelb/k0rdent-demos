@@ -497,7 +497,14 @@ get-yaml-multiclusterservice-global-kyverno: ## Get global-kyverno MultiClusterS
 
 ##@ Demo 5
 
+define get_host_work_dir
+	docker ps --filter "ancestor=msr.ci.mirantis.com/testeng/testsuite:0.5.0" --format "{{.ID}}" | head -n 1 | \
+	xargs docker inspect | jq -r '.[] | .Mounts[]? | select(.Source? and (.Source | test(".*/work$$"))) | .Source'
+endef
+
+CERTS_DIR_HOST = $(shell $(call get_host_work_dir))/k0rdent/github.com/k0rdent/demos/certs
 CERTS_DIR = $(shell pwd)/certs
+
 CERTS_CA_DIR = $(CERTS_DIR)/ca
 $(CERTS_CA_DIR):
 	@mkdir -p $(CERTS_CA_DIR)
@@ -513,13 +520,13 @@ $(PLATFORM_ENGINEER_CERTS_DIR):
 	@mkdir -p $(PLATFORM_ENGINEER_CERTS_DIR)
 
 $(PLATFORM_ENGINEER_CERTS_DIR)/platform-engineer1.key: $(PLATFORM_ENGINEER_CERTS_DIR)
-	@docker run -v $(CERTS_DIR):/certs $(OPENSSL_DOCKER_IMAGE) genrsa -out /certs/platform-engineer1/platform-engineer1.key 2048
+	@docker run -v $(CERTS_DIR_HOST):/certs $(OPENSSL_DOCKER_IMAGE) genrsa -out /certs/platform-engineer1/platform-engineer1.key 2048
 
 $(PLATFORM_ENGINEER_CERTS_DIR)/platform-engineer1.csr: $(PLATFORM_ENGINEER_CERTS_DIR) $(PLATFORM_ENGINEER_CERTS_DIR)/platform-engineer1.key
-	@docker run -v $(CERTS_DIR):/certs $(OPENSSL_DOCKER_IMAGE) req -new -key /certs/platform-engineer1/platform-engineer1.key -out /certs/platform-engineer1/platform-engineer1.csr -subj '/CN=platform-engineer1/O=$(TARGET_NAMESPACE)'
+	@docker run -v $(CERTS_DIR_HOST):/certs $(OPENSSL_DOCKER_IMAGE) req -new -key /certs/platform-engineer1/platform-engineer1.key -out /certs/platform-engineer1/platform-engineer1.csr -subj '/CN=platform-engineer1/O=$(TARGET_NAMESPACE)'
 
 $(PLATFORM_ENGINEER_CERTS_DIR)/platform-engineer1.crt: $(PLATFORM_ENGINEER_CERTS_DIR) $(PLATFORM_ENGINEER_CERTS_DIR)/platform-engineer1.csr $(CERTS_CA_DIR)/ca.crt $(CERTS_CA_DIR)/ca.key
-	@docker run -v $(CERTS_DIR):/certs $(OPENSSL_DOCKER_IMAGE) x509 -req -in /certs/platform-engineer1/platform-engineer1.csr -CA /certs/ca/ca.crt -CAkey /certs/ca/ca.key -CAcreateserial -out /certs/platform-engineer1/platform-engineer1.crt -days 360
+	@docker run -v $(CERTS_DIR_HOST):/certs $(OPENSSL_DOCKER_IMAGE) x509 -req -in /certs/platform-engineer1/platform-engineer1.csr -CA /certs/ca/ca.crt -CAkey /certs/ca/ca.key -CAcreateserial -out /certs/platform-engineer1/platform-engineer1.crt -days 360
 
 .PHONY: create-target-namespace-rolebindings
 create-target-namespace-rolebindings: .check-binary-kubectl
